@@ -18,6 +18,7 @@ import (
 
 var rootFlags struct {
 	verbose bool
+	port    int
 }
 
 var rootCmd = &cobra.Command{
@@ -138,7 +139,7 @@ var rootCmd = &cobra.Command{
 		g.POST("/git-upload-pack", handleSmartService("git-upload-pack"))
 		g.POST("/git-receive-pack", handleSmartService("git-receive-pack"))
 
-		if err := e.Start(":8080"); err != nil {
+		if err := e.Start(fmt.Sprintf(":%d", rootFlags.port)); err != nil {
 			log.Fatal().Err(err).Msg("shutting down the server")
 		}
 	},
@@ -153,4 +154,5 @@ func Execute() {
 
 func init() {
 	rootCmd.PersistentFlags().BoolVarP(&rootFlags.verbose, "verbose", "v", false, "Enable verbose output")
+	rootCmd.Flags().IntVarP(&rootFlags.port, "port", "p", 8080, "Port to listen on")
 }
