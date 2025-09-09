@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -13,35 +14,19 @@ import (
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
+	"github.com/samber/lo"
 	"github.com/spf13/cobra"
 )
 
 var rootFlags struct {
 	verbose bool
 	port    int
+	root    string
 }
 
 var rootCmd = &cobra.Command{
 	Use: "githost",
 	Run: func(cmd *cobra.Command, args []string) {
-		log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
-		if rootFlags.verbose {
-			log.Logger.Level(zerolog.DebugLevel)
-		}
-
-		gitdir, err := os.MkdirTemp("", "githost-*")
-		if err != nil {
-			log.Error().Err(err).Msg("failed to create temp dir")
-			return
-		}
-		defer os.RemoveAll(gitdir)
-
-		if exec.Command("git", "init", "--bare", gitdir).Run() != nil {
-			log.Error().Err(err).Msg("failed to init bare git repo")
-			return
-		}
-		log.Info().Str("dir", gitdir).Msg("Initialized bare git repository")
-
 		log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
 		if rootFlags.verbose {
 			log.Logger.Level(zerolog.DebugLevel)
@@ -75,6 +60,22 @@ var rootCmd = &cobra.Command{
 
 		g := e.Group("/:username/:reponame")
 		g.GET("/info/refs", func(c echo.Context) error {
+			username := c.Param("username")
+			reponame := c.Param("reponame")
+			repodir := lo.Must(filepath.Abs(filepath.Join(rootFlags.root, username, reponame)))
+
+			if _, err := os.Stat(repodir); os.IsNotExist(err) {
+				if err := os.MkdirAll(repodir, 0744); err != nil {
+					log.Error().Err(err).Str("dir", repodir).Msg("Failed to create repository directory")
+					return c.NoContent(http.StatusInternalServerError)
+				}
+				if exec.Command("git", "init", "--bare", repodir).Run() != nil {
+					log.Error().Err(err).Str("dir", repodir).Msg("Failed to init bare git repo")
+					return c.NoContent(http.StatusInternalServerError)
+				}
+				log.Info().Str("dir", repodir).Msg("Initialized bare git repository")
+			}
+
 			service := c.QueryParam("service")
 
 			res := c.Response()
@@ -97,7 +98,7 @@ var rootCmd = &cobra.Command{
 				res.Writer.Write(pktline.Bytes())
 			}
 
-			cmd := exec.Command("git", strings.TrimPrefix(service, "git-"), "--stateless-rpc", "--advertise-refs", gitdir)
+			cmd := exec.Command("git", strings.TrimPrefix(service, "git-"), "--stateless-rpc", "--advertise-refs", repodir)
 			var stderr bytes.Buffer
 			cmd.Stdin = c.Request().Body
 			cmd.Stdout = res.Writer
@@ -114,6 +115,10 @@ var rootCmd = &cobra.Command{
 
 		handleSmartService := func(service string) echo.HandlerFunc {
 			return func(c echo.Context) error {
+				username := c.Param("username")
+				reponame := c.Param("reponame")
+				repodir := lo.Must(filepath.Abs(filepath.Join(rootFlags.root, username, reponame)))
+
 				res := c.Response()
 				header := res.Header()
 				header.Set("Content-Type", fmt.Sprintf("application/x-%s-result", service))
@@ -121,7 +126,7 @@ var rootCmd = &cobra.Command{
 
 				res.Writer.WriteHeader(http.StatusOK)
 
-				cmd := exec.Command("git", strings.TrimPrefix(service, "git-"), "--stateless-rpc", gitdir)
+				cmd := exec.Command("git", strings.TrimPrefix(service, "git-"), "--stateless-rpc", repodir)
 				var stderr bytes.Buffer
 				cmd.Stdin = c.Request().Body
 				cmd.Stdout = res.Writer
@@ -155,4 +160,5 @@ func Execute() {
 func init() {
 	rootCmd.PersistentFlags().BoolVarP(&rootFlags.verbose, "verbose", "v", false, "Enable verbose output")
 	rootCmd.Flags().IntVarP(&rootFlags.port, "port", "p", 8080, "Port to listen on")
+	rootCmd.Flags().StringVarP(&rootFlags.root, "root", "r", "./repos", "Root directory to store repositories")
 }

@@ -5,6 +5,7 @@ go 1.25.1
 require (
 	github.com/labstack/echo/v4 v4.13.4
 	github.com/rs/zerolog v1.34.0
+	github.com/samber/lo v1.51.0
 	github.com/spf13/cobra v1.10.1
 )
 
