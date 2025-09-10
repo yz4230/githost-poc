@@ -18,20 +18,24 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var rootFlags struct {
+var rootPersistentFlags struct {
 	verbose bool
-	port    int
-	root    string
+}
+
+var rootFlags struct {
+	port int
+	root string
 }
 
 var rootCmd = &cobra.Command{
 	Use: "githost",
-	Run: func(cmd *cobra.Command, args []string) {
+	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
-		if rootFlags.verbose {
+		if rootPersistentFlags.verbose {
 			log.Logger.Level(zerolog.DebugLevel)
 		}
-
+	},
+	Run: func(cmd *cobra.Command, args []string) {
 		e := echo.New()
 		e.HidePort = true
 		e.HideBanner = true
@@ -158,7 +162,7 @@ func Execute() {
 }
 
 func init() {
-	rootCmd.PersistentFlags().BoolVarP(&rootFlags.verbose, "verbose", "v", false, "Enable verbose output")
+	rootCmd.PersistentFlags().BoolVarP(&rootPersistentFlags.verbose, "verbose", "v", false, "Enable verbose output")
 	rootCmd.Flags().IntVarP(&rootFlags.port, "port", "p", 8080, "Port to listen on")
 	rootCmd.Flags().StringVarP(&rootFlags.root, "root", "r", "./repos", "Root directory to store repositories")
 }
