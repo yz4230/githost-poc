@@ -8,7 +8,7 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/rs/zerolog"
-	"github.com/yz4230/githost-poc/internal/gitopt"
+	"github.com/yz4230/githost-poc/internal/gitproto"
 )
 
 type Config struct {
@@ -68,40 +68,40 @@ func (s *Server) registerRoutes() {
 	g.GET("/info/refs", func(c echo.Context) error {
 		req, res := c.Request(), c.Response()
 		username, reponame := c.Param("username"), c.Param("reponame")
-		repodir, err := gitopt.EnsureBareRepo(req.Context(), s.cfg.Root, username, reponame)
+		repodir, err := gitproto.EnsureBareRepo(req.Context(), s.cfg.Root, username, reponame)
 		if err != nil {
 			s.cfg.Logger.Error().Err(err).Msg("ensure repo failed")
 			return c.NoContent(http.StatusInternalServerError)
 		}
-		service := gitopt.Service(c.QueryParam("service"))
+		service := gitproto.Service(c.QueryParam("service"))
 		res.Header().Set("Content-Type", "application/x-"+string(service)+"-advertisement")
 		res.Header().Set("Cache-Control", "no-cache")
-		if err := gitopt.AdvertiseRefs(req.Context(), service, repodir, res.Writer); err != nil {
+		if err := gitproto.AdvertiseRefs(req.Context(), service, repodir, res.Writer); err != nil {
 			return c.NoContent(http.StatusInternalServerError)
 		}
 		return nil
 	})
 
-	smartHandler := func(service gitopt.Service) echo.HandlerFunc {
+	smartHandler := func(service gitproto.Service) echo.HandlerFunc {
 		return func(c echo.Context) error {
 			req, res := c.Request(), c.Response()
 			username, reponame := c.Param("username"), c.Param("reponame")
-			repodir, err := gitopt.EnsureBareRepo(req.Context(), s.cfg.Root, username, reponame)
+			repodir, err := gitproto.EnsureBareRepo(req.Context(), s.cfg.Root, username, reponame)
 			if err != nil {
 				s.cfg.Logger.Error().Err(err).Msg("ensure repo failed")
 				return c.NoContent(http.StatusInternalServerError)
 			}
 			res.Header().Set("Content-Type", "application/x-"+string(service)+"-result")
 			res.Header().Set("Cache-Control", "no-cache")
-			if err := gitopt.ExecStatelessRPC(req.Context(), service, repodir, req.Body, res.Writer); err != nil {
+			if err := gitproto.ExecStatelessRPC(req.Context(), service, repodir, req.Body, res.Writer); err != nil {
 				return c.NoContent(http.StatusInternalServerError)
 			}
 			return nil
 		}
 	}
 
-	g.POST("/git-upload-pack", smartHandler(gitopt.ServiceUploadPack))
-	g.POST("/git-receive-pack", smartHandler(gitopt.ServiceReceivePack))
+	g.POST("/git-upload-pack", smartHandler(gitproto.ServiceUploadPack))
+	g.POST("/git-receive-pack", smartHandler(gitproto.ServiceReceivePack))
 }
 
 func (s *Server) Start() error {

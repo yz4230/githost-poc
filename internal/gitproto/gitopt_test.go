@@ -1,4 +1,4 @@
-package gitopt
+package gitproto
 
 import (
 	"context"
