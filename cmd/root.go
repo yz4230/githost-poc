@@ -27,7 +27,7 @@ var rootFlags struct {
 var rootCmd = &cobra.Command{
 	Use: "githost",
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
-		log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
+		log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stdout})
 		if rootPersistentFlags.verbose {
 			log.Logger.Level(zerolog.DebugLevel)
 		}
