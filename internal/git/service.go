@@ -1,4 +1,4 @@
-package gitproto
+package git
 
 import (
 	"bytes"
@@ -55,7 +55,7 @@ func EnsureBareRepo(ctx context.Context, root, user, repo string) (string, error
 	}
 	repodir := filepath.Join(root, user, repo)
 	if _, err := os.Stat(repodir); os.IsNotExist(err) {
-		if err := os.MkdirAll(repodir, 0o744); err != nil {
+		if err := os.MkdirAll(repodir, os.ModePerm); err != nil {
 			return "", fmt.Errorf("create repo dir: %w", err)
 		}
 		if initErr := exec.Command("git", "init", "--bare", repodir).Run(); initErr != nil {
