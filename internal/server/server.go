@@ -2,10 +2,8 @@ package server
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/http"
-	"time"
 
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
@@ -106,33 +104,12 @@ func (s *Server) registerRoutes() {
 	g.POST("/git-receive-pack", smartHandler(gitopt.ServiceReceivePack))
 }
 
-func (s *Server) Start(ctx context.Context) error {
+func (s *Server) Start() error {
 	addr := fmt.Sprintf(":%d", s.cfg.Port)
 	s.cfg.Logger.Info().Str("addr", addr).Msg("starting server")
+	return s.e.Start(addr)
+}
 
-	errCh := make(chan error, 1)
-	go func() {
-		if err := s.e.Start(addr); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			errCh <- err
-		}
-		close(errCh)
-	}()
-
-	select {
-	case <-ctx.Done():
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		if err := s.e.Shutdown(shutdownCtx); err != nil {
-			s.cfg.Logger.Error().Err(err).Msg("graceful shutdown failed")
-			return err
-		}
-		s.cfg.Logger.Info().Msg("server shutdown complete")
-		return ctx.Err() // propagate context cancellation (root may choose to ignore)
-	case err := <-errCh:
-		if err != nil {
-			s.cfg.Logger.Error().Err(err).Msg("server exited with error")
-			return err
-		}
-		return nil
-	}
+func (s *Server) Stop(ctx context.Context) error {
+	return s.e.Shutdown(ctx)
 }

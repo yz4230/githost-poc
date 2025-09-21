@@ -3,8 +3,10 @@ package cmd
 import (
 	"context"
 	"errors"
+	"net/http"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 
 	"github.com/rs/zerolog"
@@ -33,15 +35,24 @@ var rootCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		cfg := &server.Config{Root: rootFlags.root, Port: rootFlags.port, Logger: log.Logger}
 		srv := server.New(cfg)
-		ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-		defer stop()
-		if err := srv.Start(ctx); err != nil {
-			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-				log.Info().Msg("server stopped (context canceled)")
-				return
+		chSignal := make(chan os.Signal, 1)
+		signal.Notify(chSignal, os.Interrupt, syscall.SIGTERM)
+
+		wg := &sync.WaitGroup{}
+		wg.Go(func() {
+			if err := srv.Start(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+				cfg.Logger.Fatal().Err(err).Msg("server error")
 			}
-			log.Fatal().Err(err).Msg("server exited")
+		})
+
+		sig := <-chSignal
+		cfg.Logger.Info().Str("signal", sig.String()).Msg("shutting down server...")
+		if err := srv.Stop(context.Background()); err != nil {
+			cfg.Logger.Error().Err(err).Msg("error during server shutdown")
 		}
+
+		wg.Wait()
+		cfg.Logger.Info().Msg("server stopped")
 	},
 }
 
