@@ -12,6 +12,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
+	hookcmd "github.com/yz4230/githost-poc/cmd/hook"
 	"github.com/yz4230/githost-poc/internal/server"
 )
 
@@ -64,6 +65,8 @@ func Execute() {
 }
 
 func init() {
+	rootCmd.AddCommand(hookcmd.HookCmd)
+
 	rootCmd.PersistentFlags().BoolVarP(&rootPersistentFlags.verbose, "verbose", "v", false, "Enable verbose output")
 	rootCmd.Flags().IntVarP(&rootFlags.port, "port", "p", 8080, "Port to listen on")
 	rootCmd.Flags().StringVarP(&rootFlags.root, "root", "r", "./repos", "Root directory to store repositories")
