@@ -92,7 +92,7 @@ func createGitHooks(ctx context.Context, repodir string) error {
 
 	scriptPath := filepath.Join(hooksDir, "post-receive")
 	scriptContent := fmt.Sprintf(`#!/bin/sh
-echo "${cat}" | %s hook post-receive
+echo $(cat) | %s hook post-receive
 `, os.Args[0])
 	if err := os.WriteFile(scriptPath, []byte(scriptContent), os.ModePerm); err != nil {
 		return fmt.Errorf("write post-receive hook: %w", err)
