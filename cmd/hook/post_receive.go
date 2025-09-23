@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/docker/docker/api/types/build"
+	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/jsonmessage"
 	"github.com/moby/go-archive"
@@ -87,13 +88,44 @@ var postReceiveCmd = &cobra.Command{
 func deployWithDocker(dir, name, sha string) error {
 	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to create docker client: %w", err)
 	}
 	defer cli.Close()
 
+	imageID, err := buildDockerImage(cli, dir, name, sha)
+	if err != nil {
+		return fmt.Errorf("failed to build docker image: %w", err)
+	}
+
+	log.Info().Str("image", imageID).Msg("starting container with new image")
+
+	resp, err := cli.ContainerCreate(context.Background(),
+		&container.Config{
+			Image: fmt.Sprintf("%s:%s", name, sha),
+		},
+		&container.HostConfig{
+			RestartPolicy: container.RestartPolicy{
+				Name: container.RestartPolicyUnlessStopped,
+			},
+		}, nil, nil, name)
+
+	if err != nil {
+		return fmt.Errorf("failed to create container: %w", err)
+	}
+
+	if err := cli.ContainerStart(context.Background(), resp.ID, container.StartOptions{}); err != nil {
+		return fmt.Errorf("failed to start container: %w", err)
+	}
+
+	log.Info().Str("container", resp.ID).Msg("container started successfully")
+
+	return nil
+}
+
+func buildDockerImage(cli *client.Client, dir, name, sha string) (string, error) {
 	buildContext, err := archive.TarWithOptions(dir, &archive.TarOptions{})
 	if err != nil {
-		return err
+		return "", fmt.Errorf("failed to create tar archive: %w", err)
 	}
 	buildOptions := build.ImageBuildOptions{
 		Tags:       []string{fmt.Sprintf("%s:%s", name, sha), fmt.Sprintf("%s:latest", name)},
@@ -103,7 +135,7 @@ func deployWithDocker(dir, name, sha string) error {
 	}
 	resp, err := cli.ImageBuild(context.Background(), buildContext, buildOptions)
 	if err != nil {
-		fmt.Println("ImageBuild error:", err)
+		return "", fmt.Errorf("failed to build image: %w", err)
 	}
 	defer resp.Body.Close()
 
@@ -115,7 +147,7 @@ func deployWithDocker(dir, name, sha string) error {
 			if err == io.EOF {
 				break
 			}
-			return err
+			return "", fmt.Errorf("failed to decode json message: %w", err)
 		}
 		if stream := strings.TrimSpace(jm.Stream); stream != "" {
 			log.Info().Msg(stream)
@@ -123,16 +155,16 @@ func deployWithDocker(dir, name, sha string) error {
 		if jm.Aux != nil {
 			var result build.Result
 			if err := json.Unmarshal(*jm.Aux, &result); err != nil {
-				return err
+				return "", fmt.Errorf("failed to unmarshal json message: %w", err)
 			}
 			imageID = result.ID
 		}
 	}
 	if imageID == "" {
-		return fmt.Errorf("failed to get image ID")
+		return "", fmt.Errorf("failed to get image ID")
 	}
 
 	log.Info().Str("image", imageID).Msg("built image successfully")
 
-	return nil
+	return imageID, nil
 }
