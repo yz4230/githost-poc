@@ -12,7 +12,7 @@ import (
 var postReceiveCmd = &cobra.Command{
 	Use: "post-receive",
 	Run: func(cmd *cobra.Command, args []string) {
-		log.Info().Msg("post-receive is triggered")
+		log.Info().Str("GIT_DIR", os.Getenv("GIT_DIR")).Msg("post-receive is triggered")
 
 		s := bufio.NewScanner(os.Stdin)
 		for s.Scan() {
