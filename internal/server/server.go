@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/labstack/echo/v4"
@@ -94,10 +95,13 @@ func (s *Server) registerRestAPI(injector *do.Injector) {
 
 func (s *Server) registerGitSmartHTTP(injector *do.Injector) {
 	g := s.e.Group("/:reponame")
+
+	// Validate reponame
 	g.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
+		reReponame := regexp.MustCompile(`^[a-zA-Z0-9_-]+\.git$`)
 		return func(c echo.Context) error {
 			reponame := c.Param("reponame")
-			if !strings.HasSuffix(reponame, ".git") {
+			if !reReponame.MatchString(reponame) {
 				return c.NoContent(http.StatusNotFound)
 			}
 			return next(c)
