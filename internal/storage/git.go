@@ -10,21 +10,34 @@ import (
 
 	"github.com/rs/zerolog"
 	"github.com/samber/lo"
-	"github.com/yz4230/githost-poc/internal/utils"
 )
 
 type GitStorage interface {
-	InitBare(ctx context.Context, name string) error
+	GetRepoDir(name string) string
+	EnsureBareRepo(ctx context.Context, name string) error
+	InitBareRepo(ctx context.Context, name string) error
 }
 
-type GitStorageImpl struct {
+type gitStorageImpl struct {
 	rootDir string
 	log     zerolog.Logger
 }
 
-// InitBare implements GitStorage.
-func (g *GitStorageImpl) InitBare(ctx context.Context, reponame string) error {
-	repodir := g.getRepoDir(reponame)
+// EnsureBareRepo implements GitStorage.
+func (g *gitStorageImpl) EnsureBareRepo(ctx context.Context, reponame string) error {
+	repodir := g.GetRepoDir(reponame)
+	if _, err := os.Stat(repodir); os.IsNotExist(err) {
+		g.log.Debug().Str("dir", repodir).Msg("repo does not exist, initializing")
+		if err := g.InitBareRepo(ctx, reponame); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// InitBareRepo implements GitStorage.
+func (g *gitStorageImpl) InitBareRepo(ctx context.Context, reponame string) error {
+	repodir := g.GetRepoDir(reponame)
 	if err := os.MkdirAll(repodir, os.ModePerm); err != nil {
 		return fmt.Errorf("create repo dir: %w", err)
 	}
@@ -46,8 +59,8 @@ func (g *GitStorageImpl) InitBare(ctx context.Context, reponame string) error {
 	return nil
 }
 
-func (g *GitStorageImpl) getRepoDir(reponame string) string {
-	return lo.Must(filepath.Abs(filepath.Join(g.rootDir, utils.EnsureSuffix(reponame, ".git"))))
+func (g *gitStorageImpl) GetRepoDir(reponame string) string {
+	return lo.Must(filepath.Abs(filepath.Join(g.rootDir, reponame+".git")))
 }
 
 func shellScript(lines ...string) string {
@@ -55,7 +68,7 @@ func shellScript(lines ...string) string {
 }
 
 func NewGitStorage(root string, log zerolog.Logger) GitStorage {
-	return &GitStorageImpl{
+	return &gitStorageImpl{
 		rootDir: root,
 		log:     log,
 	}
