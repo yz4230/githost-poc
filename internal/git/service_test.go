@@ -25,7 +25,7 @@ func TestEnsureBareRepoCtx(t *testing.T) {
 	dir := t.TempDir()
 	logger := zerolog.New(os.Stdout).Level(zerolog.Disabled)
 	ctx := logger.WithContext(context.Background())
-	path, err := EnsureBareRepo(ctx, dir, "user", "repo")
+	path, err := EnsureBareRepo(ctx, dir, "repo")
 	if err != nil {
 		t.Fatalf("EnsureBareRepo error: %v", err)
 	}
@@ -33,7 +33,7 @@ func TestEnsureBareRepoCtx(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(path, "HEAD")); err != nil {
 		t.Fatalf("expected HEAD in repo: %v", err)
 	}
-	if _, err := EnsureBareRepo(ctx, dir, "user", "repo"); err != nil {
+	if _, err := EnsureBareRepo(ctx, dir, "repo"); err != nil {
 		t.Fatalf("second EnsureBareRepo error: %v", err)
 	}
 }

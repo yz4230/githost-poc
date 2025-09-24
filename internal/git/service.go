@@ -31,6 +31,8 @@ var validService = map[Service]bool{
 
 var nameRe = regexp.MustCompile(`^[A-Za-z0-9_.-]+$`)
 
+const Repositories = "repositories"
+
 // SanitizeName validates a single path segment (username / reponame).
 func SanitizeName(s string) (string, error) {
 	if s == "" {
@@ -43,17 +45,13 @@ func SanitizeName(s string) (string, error) {
 }
 
 // EnsureBareRepo ensures the bare repository exists (initializing if needed) and returns its absolute path.
-func EnsureBareRepo(ctx context.Context, root, user, repo string) (string, error) {
+func EnsureBareRepo(ctx context.Context, root, reponame string) (string, error) {
 	log := zerolog.Ctx(ctx)
-	user, err := SanitizeName(user)
+	reponame, err := SanitizeName(reponame)
 	if err != nil {
 		return "", err
 	}
-	repo, err = SanitizeName(repo)
-	if err != nil {
-		return "", err
-	}
-	repodir, err := filepath.Abs(filepath.Join(root, user, repo))
+	repodir, err := filepath.Abs(filepath.Join(root, Repositories, ensureSuffix(reponame, ".git")))
 	if err != nil {
 		return "", err
 	}
@@ -81,6 +79,13 @@ func InitBareRepo(ctx context.Context, repodir string) error {
 	log.Info().Str("dir", repodir).Msg("initialized bare git repository")
 
 	return nil
+}
+
+func ensureSuffix(s, suffix string) string {
+	if strings.HasSuffix(s, suffix) {
+		return s
+	}
+	return s + suffix
 }
 
 func createGitHooks(ctx context.Context, repodir string) error {

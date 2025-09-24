@@ -63,12 +63,12 @@ func New(cfg *Config) *Server {
 }
 
 func (s *Server) registerRoutes() {
-	g := s.e.Group("/:username/:reponame")
+	g := s.e.Group("/:reponame")
 
 	g.GET("/info/refs", func(c echo.Context) error {
 		req, res := c.Request(), c.Response()
-		username, reponame := c.Param("username"), c.Param("reponame")
-		repodir, err := git.EnsureBareRepo(req.Context(), s.cfg.Root, username, reponame)
+		reponame := c.Param("reponame")
+		repodir, err := git.EnsureBareRepo(req.Context(), s.cfg.Root, reponame)
 		if err != nil {
 			s.cfg.Logger.Error().Err(err).Msg("ensure repo failed")
 			return c.NoContent(http.StatusInternalServerError)
@@ -85,8 +85,8 @@ func (s *Server) registerRoutes() {
 	smartHandler := func(service git.Service) echo.HandlerFunc {
 		return func(c echo.Context) error {
 			req, res := c.Request(), c.Response()
-			username, reponame := c.Param("username"), c.Param("reponame")
-			repodir, err := git.EnsureBareRepo(req.Context(), s.cfg.Root, username, reponame)
+			reponame := c.Param("reponame")
+			repodir, err := git.EnsureBareRepo(req.Context(), s.cfg.Root, reponame)
 			if err != nil {
 				s.cfg.Logger.Error().Err(err).Msg("ensure repo failed")
 				return c.NoContent(http.StatusInternalServerError)

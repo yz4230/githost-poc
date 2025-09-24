@@ -15,14 +15,14 @@ import (
 )
 
 var serveFlags struct {
-	port int
-	root string
+	port    int
+	dataDir string
 }
 
 var serveCmd = &cobra.Command{
 	Use: "serve",
-	Run: func(cmd *cobra.Command, args []string) {
-		cfg := &server.Config{Root: serveFlags.root, Port: serveFlags.port, Logger: log.Logger}
+	RunE: func(cmd *cobra.Command, args []string) error {
+		cfg := &server.Config{Root: serveFlags.dataDir, Port: serveFlags.port, Logger: log.Logger}
 		srv := server.New(cfg)
 		chSignal := make(chan os.Signal, 1)
 		signal.Notify(chSignal, os.Interrupt, syscall.SIGTERM)
@@ -42,10 +42,12 @@ var serveCmd = &cobra.Command{
 
 		wg.Wait()
 		cfg.Logger.Info().Msg("server stopped")
+
+		return nil
 	},
 }
 
 func init() {
 	serveCmd.Flags().IntVarP(&serveFlags.port, "port", "p", 8080, "Port to listen on")
-	serveCmd.Flags().StringVarP(&serveFlags.root, "root", "r", "./repos", "Root directory to store repositories")
+	serveCmd.Flags().StringVarP(&serveFlags.dataDir, "data", "d", "./data", "Directory to store server data")
 }

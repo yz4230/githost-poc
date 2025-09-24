@@ -33,6 +33,4 @@ func Execute() {
 func init() {
 	rootCmd.AddCommand(serveCmd)
 	rootCmd.AddCommand(hookcmd.HookCmd)
-
-	rootCmd.Flags().StringVarP(&serveFlags.root, "root", "r", "./repos", "Root directory to store repositories")
 }
