@@ -3,11 +3,9 @@ package git
 import (
 	"context"
 	"fmt"
-
 	"os"
 	"os/exec"
 	"path/filepath"
-
 	"strings"
 
 	"github.com/rs/zerolog"
