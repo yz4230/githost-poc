@@ -73,8 +73,8 @@ func (s *Server) registerRoutes() {
 			s.cfg.Logger.Error().Err(err).Msg("ensure repo failed")
 			return c.NoContent(http.StatusInternalServerError)
 		}
-		service := git.Service(c.QueryParam("service"))
-		res.Header().Set("Content-Type", "application/x-"+string(service)+"-advertisement")
+		service := c.QueryParam("service")
+		res.Header().Set("Content-Type", "application/x-"+service+"-advertisement")
 		res.Header().Set("Cache-Control", "no-cache")
 		if err := git.AdvertiseRefs(req.Context(), service, repodir, res.Writer); err != nil {
 			return c.NoContent(http.StatusInternalServerError)
@@ -82,7 +82,7 @@ func (s *Server) registerRoutes() {
 		return nil
 	})
 
-	smartHandler := func(service git.Service) echo.HandlerFunc {
+	smartHandler := func(service string) echo.HandlerFunc {
 		return func(c echo.Context) error {
 			req, res := c.Request(), c.Response()
 			reponame := c.Param("reponame")
@@ -91,7 +91,7 @@ func (s *Server) registerRoutes() {
 				s.cfg.Logger.Error().Err(err).Msg("ensure repo failed")
 				return c.NoContent(http.StatusInternalServerError)
 			}
-			res.Header().Set("Content-Type", "application/x-"+string(service)+"-result")
+			res.Header().Set("Content-Type", "application/x-"+service+"-result")
 			res.Header().Set("Cache-Control", "no-cache")
 			if err := git.ExecStatelessRPC(req.Context(), service, repodir, req.Body, res.Writer); err != nil {
 				return c.NoContent(http.StatusInternalServerError)
