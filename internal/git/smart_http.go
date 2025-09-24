@@ -48,7 +48,7 @@ func AdvertiseRefs(ctx context.Context, service string, repoPath string, w io.Wr
 	if _, err := w.Write(ann); err != nil {
 		return fmt.Errorf("write announcement: %w", err)
 	}
-	cmd := exec.Command("git", strings.TrimPrefix(string(service), "git-"), "--stateless-rpc", "--advertise-refs", repoPath)
+	cmd := exec.Command("git", strings.TrimPrefix(service, "git-"), "--stateless-rpc", "--advertise-refs", repoPath)
 	var stderr bytes.Buffer
 	cmd.Stdout = w
 	cmd.Stderr = &stderr
@@ -66,7 +66,7 @@ func ExecStatelessRPC(ctx context.Context, service string, repoPath string, in i
 	if service != ServiceUploadPack && service != ServiceReceivePack {
 		return fmt.Errorf("unsupported service: %s", service)
 	}
-	cmd := exec.Command("git", strings.TrimPrefix(string(service), "git-"), "--stateless-rpc", repoPath)
+	cmd := exec.Command("git", strings.TrimPrefix(service, "git-"), "--stateless-rpc", repoPath)
 	var stderr bytes.Buffer
 	cmd.Stdin = in
 	cmd.Stdout = w
