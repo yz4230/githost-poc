@@ -63,6 +63,19 @@ func New(cfg *Config) *Server {
 }
 
 func (s *Server) registerRoutes() {
+	s.registerRestAPI()
+	s.registerGitSmartHTTP()
+}
+
+func (s *Server) registerRestAPI() {
+	g := s.e.Group("/api")
+
+	g.GET("/health", func(c echo.Context) error {
+		return c.String(http.StatusOK, "OK")
+	})
+}
+
+func (s *Server) registerGitSmartHTTP() {
 	g := s.e.Group("/:reponame")
 
 	g.GET("/info/refs", func(c echo.Context) error {
