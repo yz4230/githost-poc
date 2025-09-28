@@ -31,6 +31,7 @@ func New(config *Config) *Server {
 	e := echo.New()
 	e.HidePort = true
 	e.HideBanner = true
+	e.Use(middleware.CORS())
 	e.Use(middleware.RequestLoggerWithConfig(middleware.RequestLoggerConfig{
 		LogRemoteIP:  true,
 		LogHost:      true,
