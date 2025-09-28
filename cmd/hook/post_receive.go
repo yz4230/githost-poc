@@ -13,6 +13,7 @@ import (
 
 	"github.com/docker/docker/api/types/build"
 	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/jsonmessage"
 	"github.com/moby/go-archive"
@@ -23,13 +24,16 @@ import (
 const BRANCH_FOR_DEPLOY = "refs/heads/main"
 
 var postReceiveCmd = &cobra.Command{
-	Use: "post-receive",
-	Run: func(cmd *cobra.Command, args []string) {
+	Use:           "post-receive",
+	Short:         "Handle post-receive git hook. Not intended to be run manually.",
+	SilenceErrors: true,
+	SilenceUsage:  true,
+	RunE: func(cmd *cobra.Command, args []string) error {
 		gitDir, err := os.Getwd()
 		if err != nil {
 			log.Fatal().Err(err).Msg("getwd")
 		}
-		reponame := filepath.Base(gitDir)
+		reponame := strings.TrimSuffix(filepath.Base(gitDir), ".git")
 
 		shouldDeploy := false
 		s := bufio.NewScanner(os.Stdin)
@@ -55,7 +59,7 @@ var postReceiveCmd = &cobra.Command{
 
 		if !shouldDeploy {
 			log.Info().Msg("no deployment needed")
-			return
+			return nil
 		}
 
 		log.Info().Str("old_sha", oldsha).Str("new_sha", newsha).Str("ref", refName).Msg("starting deployment...")
@@ -63,51 +67,77 @@ var postReceiveCmd = &cobra.Command{
 		tmpDir, err := os.MkdirTemp("", fmt.Sprintf("deployment-%s-*", newsha))
 		if err != nil {
 			log.Error().Err(err).Msg("create temp dir")
-			return
+			return err
 		}
 		defer os.RemoveAll(tmpDir)
 
 		if err := exec.Command("git", "clone", "--depth=1", "--branch=main", gitDir, tmpDir).Run(); err != nil {
 			log.Error().Err(err).Msg("git clone")
-			return
+			return err
 		}
 
 		if _, err := os.Stat(filepath.Join(tmpDir, "Dockerfile")); os.IsNotExist(err) {
 			log.Warn().Msg("no Dockerfile found, skipping deployment")
-			return
+			return nil
 		}
 
 		log.Info().Msg("starting deployment with docker")
 
 		if err := deployWithDocker(tmpDir, reponame, newsha); err != nil {
 			log.Error().Err(err).Msg("failed to deploy with docker")
+			return err
 		}
+
+		return nil
 	},
 }
 
-func deployWithDocker(dir, name, sha string) error {
+func deployWithDocker(repodir, reponame, commitSHA string) error {
 	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
 		return fmt.Errorf("failed to create docker client: %w", err)
 	}
 	defer cli.Close()
 
-	imageID, err := buildDockerImage(cli, dir, name, sha)
+	imageID, err := buildDockerImage(cli, repodir, reponame, commitSHA)
 	if err != nil {
 		return fmt.Errorf("failed to build docker image: %w", err)
 	}
 
-	log.Info().Str("image", imageID).Msg("starting container with new image")
+	containers, err := cli.ContainerList(context.Background(), container.ListOptions{
+		All:     true,
+		Filters: filters.NewArgs(filters.Arg("name", reponame)),
+	})
+	if err != nil {
+		log.Error().Err(err).Msg("failed to list containers")
+		return err
+	}
+	if len(containers) > 0 {
+		for _, c := range containers {
+			log.Info().Str("container", c.ID).Msg("removing existing container")
+			if err := cli.ContainerStop(context.Background(), c.ID, container.StopOptions{}); err != nil {
+				log.Error().Err(err).Msg("failed to stop existing container")
+				return err
+			}
+			if err := cli.ContainerRemove(context.Background(), c.ID, container.RemoveOptions{}); err != nil {
+				log.Error().Err(err).Msg("failed to remove existing container")
+				return err
+			}
+			log.Info().Str("container", c.ID).Msg("removed existing container")
+		}
+	}
+
+	log.Info().Str("image", imageID).Msg("starting new container")
 
 	resp, err := cli.ContainerCreate(context.Background(),
 		&container.Config{
-			Image: fmt.Sprintf("%s:%s", name, sha),
+			Image: fmt.Sprintf("%s:%s", reponame, commitSHA),
 		},
 		&container.HostConfig{
 			RestartPolicy: container.RestartPolicy{
 				Name: container.RestartPolicyUnlessStopped,
 			},
-		}, nil, nil, name)
+		}, nil, nil, reponame)
 
 	if err != nil {
 		return fmt.Errorf("failed to create container: %w", err)
@@ -117,18 +147,18 @@ func deployWithDocker(dir, name, sha string) error {
 		return fmt.Errorf("failed to start container: %w", err)
 	}
 
-	log.Info().Str("container", resp.ID).Msg("container started successfully")
+	log.Info().Str("container", resp.ID).Msg("started new container")
 
 	return nil
 }
 
-func buildDockerImage(cli *client.Client, dir, name, sha string) (string, error) {
-	buildContext, err := archive.TarWithOptions(dir, &archive.TarOptions{})
+func buildDockerImage(cli *client.Client, repodir, reponame, commitSHA string) (string, error) {
+	buildContext, err := archive.TarWithOptions(repodir, &archive.TarOptions{})
 	if err != nil {
 		return "", fmt.Errorf("failed to create tar archive: %w", err)
 	}
 	buildOptions := build.ImageBuildOptions{
-		Tags:       []string{fmt.Sprintf("%s:%s", name, sha), fmt.Sprintf("%s:latest", name)},
+		Tags:       []string{fmt.Sprintf("%s:%s", reponame, commitSHA), fmt.Sprintf("%s:latest", reponame)},
 		Dockerfile: "Dockerfile",
 		Remove:     true,
 		NoCache:    true,

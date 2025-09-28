@@ -3,12 +3,17 @@ package server
 import (
 	"context"
 	"fmt"
-	"net/http"
+	"path/filepath"
 
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/rs/zerolog"
-	"github.com/yz4230/githost-poc/internal/git"
+	"github.com/samber/do"
+	"github.com/yz4230/githost-poc/internal/repository"
+	"github.com/yz4230/githost-poc/internal/server/routes"
+	"github.com/yz4230/githost-poc/internal/storage"
+	"github.com/yz4230/githost-poc/internal/usecase"
+	"gorm.io/gorm"
 )
 
 type Config struct {
@@ -18,11 +23,11 @@ type Config struct {
 }
 
 type Server struct {
-	e   *echo.Echo
-	cfg *Config
+	e      *echo.Echo
+	config *Config
 }
 
-func New(cfg *Config) *Server {
+func New(config *Config) *Server {
 	e := echo.New()
 	e.HidePort = true
 	e.HideBanner = true
@@ -35,7 +40,7 @@ func New(cfg *Config) *Server {
 		LogStatus:    true,
 		LogLatency:   true,
 		LogValuesFunc: func(c echo.Context, v middleware.RequestLoggerValues) error {
-			cfg.Logger.Info().
+			config.Logger.Info().
 				Str("remote_ip", v.RemoteIP).
 				Str("host", v.Host).
 				Str("method", v.Method).
@@ -47,66 +52,56 @@ func New(cfg *Config) *Server {
 			return nil
 		},
 	}))
-	e.Use(middleware.Recover())
+	e.Use(middleware.RecoverWithConfig(middleware.RecoverConfig{
+		LogErrorFunc: func(c echo.Context, err error, stack []byte) error {
+			config.Logger.Error().Err(err).Bytes("stack", stack).Send()
+			return err
+		},
+	}))
 	e.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
 			req := c.Request()
-			ctx := cfg.Logger.WithContext(req.Context())
+			ctx := config.Logger.WithContext(req.Context())
 			c.SetRequest(req.WithContext(ctx))
 			return next(c)
 		}
 	})
 
-	s := &Server{e: e, cfg: cfg}
-	s.registerRoutes()
+	s := &Server{e: e, config: config}
+	s.init()
 	return s
 }
 
-func (s *Server) registerRoutes() {
-	g := s.e.Group("/:reponame")
+func (s *Server) init() {
+	injector := do.New()
+	s.injectDependencies(injector)
+	s.registerRoutes(injector)
+}
 
-	g.GET("/info/refs", func(c echo.Context) error {
-		req, res := c.Request(), c.Response()
-		reponame := c.Param("reponame")
-		repodir, err := git.EnsureBareRepo(req.Context(), s.cfg.Root, reponame)
-		if err != nil {
-			s.cfg.Logger.Error().Err(err).Msg("ensure repo failed")
-			return c.NoContent(http.StatusInternalServerError)
-		}
-		service := c.QueryParam("service")
-		res.Header().Set("Content-Type", "application/x-"+service+"-advertisement")
-		res.Header().Set("Cache-Control", "no-cache")
-		if err := git.AdvertiseRefs(req.Context(), service, repodir, res.Writer); err != nil {
-			return c.NoContent(http.StatusInternalServerError)
-		}
-		return nil
+func (s *Server) injectDependencies(injector *do.Injector) {
+	do.Provide(injector, func(i *do.Injector) (*gorm.DB, error) {
+		return repository.NewSQLiteDB(s.config.Root)
 	})
+	do.Provide(injector, func(i *do.Injector) (storage.GitStorage, error) {
+		root := filepath.Join(s.config.Root, "repositories")
+		return storage.NewGitStorage(root, s.config.Logger), nil
+	})
+	do.Provide(injector, func(i *do.Injector) (repository.RepositoryRepository, error) {
+		db := do.MustInvoke[*gorm.DB](i)
+		return repository.NewRepositoryRepository(db), nil
+	})
+	do.Provide(injector, usecase.NewCreateRepositoryUsecase)
+	do.Provide(injector, usecase.NewListRepositoryUsecase)
+}
 
-	smartHandler := func(service string) echo.HandlerFunc {
-		return func(c echo.Context) error {
-			req, res := c.Request(), c.Response()
-			reponame := c.Param("reponame")
-			repodir, err := git.EnsureBareRepo(req.Context(), s.cfg.Root, reponame)
-			if err != nil {
-				s.cfg.Logger.Error().Err(err).Msg("ensure repo failed")
-				return c.NoContent(http.StatusInternalServerError)
-			}
-			res.Header().Set("Content-Type", "application/x-"+service+"-result")
-			res.Header().Set("Cache-Control", "no-cache")
-			if err := git.ExecStatelessRPC(req.Context(), service, repodir, req.Body, res.Writer); err != nil {
-				return c.NoContent(http.StatusInternalServerError)
-			}
-			return nil
-		}
-	}
-
-	g.POST("/git-upload-pack", smartHandler(git.ServiceUploadPack))
-	g.POST("/git-receive-pack", smartHandler(git.ServiceReceivePack))
+func (s *Server) registerRoutes(injector *do.Injector) {
+	routes.RegisterRestAPI(injector, s.e)
+	routes.RegisterGitSmartHTTP(injector, s.e)
 }
 
 func (s *Server) Start() error {
-	addr := fmt.Sprintf(":%d", s.cfg.Port)
-	s.cfg.Logger.Info().Str("addr", addr).Msg("starting server")
+	addr := fmt.Sprintf(":%d", s.config.Port)
+	s.config.Logger.Info().Str("addr", addr).Msg("starting server")
 	return s.e.Start(addr)
 }
 

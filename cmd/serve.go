@@ -22,26 +22,26 @@ var serveFlags struct {
 var serveCmd = &cobra.Command{
 	Use: "serve",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		cfg := &server.Config{Root: serveFlags.dataDir, Port: serveFlags.port, Logger: log.Logger}
-		srv := server.New(cfg)
+		config := &server.Config{Root: serveFlags.dataDir, Port: serveFlags.port, Logger: log.Logger}
+		srv := server.New(config)
 		chSignal := make(chan os.Signal, 1)
 		signal.Notify(chSignal, os.Interrupt, syscall.SIGTERM)
 
 		wg := &sync.WaitGroup{}
 		wg.Go(func() {
 			if err := srv.Start(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-				cfg.Logger.Fatal().Err(err).Msg("server error")
+				config.Logger.Fatal().Err(err).Msg("server error")
 			}
 		})
 
 		sig := <-chSignal
-		cfg.Logger.Info().Str("signal", sig.String()).Msg("shutting down server...")
+		config.Logger.Info().Str("signal", sig.String()).Msg("shutting down server...")
 		if err := srv.Stop(context.Background()); err != nil {
-			cfg.Logger.Error().Err(err).Msg("error during server shutdown")
+			config.Logger.Error().Err(err).Msg("error during server shutdown")
 		}
 
 		wg.Wait()
-		cfg.Logger.Info().Msg("server stopped")
+		config.Logger.Info().Msg("server stopped")
 
 		return nil
 	},
