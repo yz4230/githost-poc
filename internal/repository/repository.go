@@ -16,12 +16,12 @@ type RepositoryRepository interface {
 	Delete(ctx context.Context, id entity.ID) error
 }
 
-type RepositoryRepositoryImpl struct {
+type repositoryRepositoryImpl struct {
 	db *gorm.DB
 }
 
 // Create implements RepoRepository.
-func (r *RepositoryRepositoryImpl) Create(ctx context.Context, repo *entity.Repository) (*entity.Repository, error) {
+func (r *repositoryRepositoryImpl) Create(ctx context.Context, repo *entity.Repository) (*entity.Repository, error) {
 	var model Repository
 	model.FromEntity(repo)
 	err := gorm.G[Repository](r.db).Create(ctx, &model)
@@ -32,7 +32,7 @@ func (r *RepositoryRepositoryImpl) Create(ctx context.Context, repo *entity.Repo
 }
 
 // GetByID implements RepoRepository.
-func (r *RepositoryRepositoryImpl) GetByID(ctx context.Context, id entity.ID) (*entity.Repository, error) {
+func (r *repositoryRepositoryImpl) GetByID(ctx context.Context, id entity.ID) (*entity.Repository, error) {
 	found, err := gorm.G[Repository](r.db).Where("id = ?", id.Uint()).First(ctx)
 	if err != nil {
 		return nil, err
@@ -41,7 +41,7 @@ func (r *RepositoryRepositoryImpl) GetByID(ctx context.Context, id entity.ID) (*
 }
 
 // GetByName implements RepoRepository.
-func (r *RepositoryRepositoryImpl) GetByName(ctx context.Context, name string) (*entity.Repository, error) {
+func (r *repositoryRepositoryImpl) GetByName(ctx context.Context, name string) (*entity.Repository, error) {
 	found, err := gorm.G[Repository](r.db).Where("name = ?", name).First(ctx)
 	if err != nil {
 		return nil, err
@@ -50,7 +50,7 @@ func (r *RepositoryRepositoryImpl) GetByName(ctx context.Context, name string) (
 }
 
 // List implements RepoRepository.
-func (r *RepositoryRepositoryImpl) List(ctx context.Context) ([]*entity.Repository, error) {
+func (r *repositoryRepositoryImpl) List(ctx context.Context) ([]*entity.Repository, error) {
 	founds, err := gorm.G[Repository](r.db).Find(ctx)
 	if err != nil {
 		return nil, err
@@ -64,7 +64,7 @@ func (r *RepositoryRepositoryImpl) List(ctx context.Context) ([]*entity.Reposito
 }
 
 // Update implements RepoRepository.
-func (r *RepositoryRepositoryImpl) Update(ctx context.Context, repo *entity.Repository) (*entity.Repository, error) {
+func (r *repositoryRepositoryImpl) Update(ctx context.Context, repo *entity.Repository) (*entity.Repository, error) {
 	var model Repository
 	model.FromEntity(repo)
 	_, err := gorm.G[Repository](r.db).Where("id = ?", repo.ID.Uint()).Updates(ctx, model)
@@ -76,11 +76,11 @@ func (r *RepositoryRepositoryImpl) Update(ctx context.Context, repo *entity.Repo
 }
 
 // Delete implements RepoRepository.
-func (r *RepositoryRepositoryImpl) Delete(ctx context.Context, id entity.ID) error {
+func (r *repositoryRepositoryImpl) Delete(ctx context.Context, id entity.ID) error {
 	_, err := gorm.G[Repository](r.db).Where("id = ?", id.Uint()).Delete(ctx)
 	return err
 }
 
 func NewRepositoryRepository(db *gorm.DB) RepositoryRepository {
-	return &RepositoryRepositoryImpl{db: db}
+	return &repositoryRepositoryImpl{db: db}
 }

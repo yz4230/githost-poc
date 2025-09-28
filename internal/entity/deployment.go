@@ -12,11 +12,11 @@ const (
 )
 
 type Deployment struct {
-	ID        ID
-	RepoID    ID
-	CommitSHA string
-	Status    DeploymentStatus
-	IsActive  bool
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	ID        ID               `json:"id"`
+	RepoID    ID               `json:"repo_id"`
+	CommitSHA string           `json:"commit_sha"`
+	Status    DeploymentStatus `json:"status"`
+	IsActive  bool             `json:"is_active"`
+	CreatedAt time.Time        `json:"created_at"`
+	UpdatedAt time.Time        `json:"updated_at"`
 }

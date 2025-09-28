@@ -16,16 +16,16 @@ type DeploymentRepository interface {
 	Delete(ctx context.Context, id entity.ID) error
 }
 
-type DeploymentRepositoryImpl struct {
+type deploymentRepositoryImpl struct {
 	db *gorm.DB
 }
 
 func NewDeploymentRepository(db *gorm.DB) DeploymentRepository {
-	return &DeploymentRepositoryImpl{db: db}
+	return &deploymentRepositoryImpl{db: db}
 }
 
 // Create a new deployment record.
-func (r *DeploymentRepositoryImpl) Create(ctx context.Context, dep *entity.Deployment) (*entity.Deployment, error) {
+func (r *deploymentRepositoryImpl) Create(ctx context.Context, dep *entity.Deployment) (*entity.Deployment, error) {
 	var model Deployment
 	model.FromEntity(dep)
 	if err := gorm.G[Deployment](r.db).Create(ctx, &model); err != nil {
@@ -35,7 +35,7 @@ func (r *DeploymentRepositoryImpl) Create(ctx context.Context, dep *entity.Deplo
 }
 
 // GetByID finds deployment by id.
-func (r *DeploymentRepositoryImpl) GetByID(ctx context.Context, id entity.ID) (*entity.Deployment, error) {
+func (r *deploymentRepositoryImpl) GetByID(ctx context.Context, id entity.ID) (*entity.Deployment, error) {
 	found, err := gorm.G[Deployment](r.db).Where("id = ?", id.Uint()).First(ctx)
 	if err != nil {
 		return nil, err
@@ -44,7 +44,7 @@ func (r *DeploymentRepositoryImpl) GetByID(ctx context.Context, id entity.ID) (*
 }
 
 // List returns all deployments.
-func (r *DeploymentRepositoryImpl) List(ctx context.Context) ([]*entity.Deployment, error) {
+func (r *deploymentRepositoryImpl) List(ctx context.Context) ([]*entity.Deployment, error) {
 	founds, err := gorm.G[Deployment](r.db).Find(ctx)
 	if err != nil {
 		return nil, err
@@ -57,7 +57,7 @@ func (r *DeploymentRepositoryImpl) List(ctx context.Context) ([]*entity.Deployme
 }
 
 // ListByRepo lists deployments belonging to a repository.
-func (r *DeploymentRepositoryImpl) ListByRepo(ctx context.Context, repoID entity.ID) ([]*entity.Deployment, error) {
+func (r *deploymentRepositoryImpl) ListByRepo(ctx context.Context, repoID entity.ID) ([]*entity.Deployment, error) {
 	founds, err := gorm.G[Deployment](r.db).Where("repo_id = ?", repoID.Uint()).Find(ctx)
 	if err != nil {
 		return nil, err
@@ -70,7 +70,7 @@ func (r *DeploymentRepositoryImpl) ListByRepo(ctx context.Context, repoID entity
 }
 
 // Update deployment record (status, active flag, commit sha etc.).
-func (r *DeploymentRepositoryImpl) Update(ctx context.Context, dep *entity.Deployment) (*entity.Deployment, error) {
+func (r *deploymentRepositoryImpl) Update(ctx context.Context, dep *entity.Deployment) (*entity.Deployment, error) {
 	var model Deployment
 	model.FromEntity(dep)
 	_, err := gorm.G[Deployment](r.db).Where("id = ?", dep.ID.Uint()).Updates(ctx, model)
@@ -81,7 +81,7 @@ func (r *DeploymentRepositoryImpl) Update(ctx context.Context, dep *entity.Deplo
 }
 
 // Delete deployment by id.
-func (r *DeploymentRepositoryImpl) Delete(ctx context.Context, id entity.ID) error {
+func (r *deploymentRepositoryImpl) Delete(ctx context.Context, id entity.ID) error {
 	_, err := gorm.G[Deployment](r.db).Where("id = ?", id.Uint()).Delete(ctx)
 	return err
 }

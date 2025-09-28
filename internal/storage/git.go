@@ -14,6 +14,7 @@ import (
 
 type GitStorage interface {
 	GetRepoDir(name string) string
+	IsRepoExist(name string) bool
 	EnsureBareRepo(ctx context.Context, name string) error
 	InitBareRepo(ctx context.Context, name string) error
 }
@@ -23,10 +24,20 @@ type gitStorageImpl struct {
 	log     zerolog.Logger
 }
 
+func (g *gitStorageImpl) GetRepoDir(reponame string) string {
+	return lo.Must(filepath.Abs(filepath.Join(g.rootDir, reponame+".git")))
+}
+
+func (g *gitStorageImpl) IsRepoExist(reponame string) bool {
+	repodir := g.GetRepoDir(reponame)
+	_, err := os.Stat(repodir)
+	return !os.IsNotExist(err)
+}
+
 // EnsureBareRepo implements GitStorage.
 func (g *gitStorageImpl) EnsureBareRepo(ctx context.Context, reponame string) error {
 	repodir := g.GetRepoDir(reponame)
-	if _, err := os.Stat(repodir); os.IsNotExist(err) {
+	if !g.IsRepoExist(reponame) {
 		g.log.Debug().Str("dir", repodir).Msg("repo does not exist, initializing")
 		if err := g.InitBareRepo(ctx, reponame); err != nil {
 			return err
@@ -57,10 +68,6 @@ func (g *gitStorageImpl) InitBareRepo(ctx context.Context, reponame string) erro
 	}
 
 	return nil
-}
-
-func (g *gitStorageImpl) GetRepoDir(reponame string) string {
-	return lo.Must(filepath.Abs(filepath.Join(g.rootDir, reponame+".git")))
 }
 
 func shellScript(lines ...string) string {

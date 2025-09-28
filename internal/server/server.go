@@ -3,17 +3,17 @@ package server
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"path/filepath"
-	"regexp"
-	"strings"
 
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/rs/zerolog"
 	"github.com/samber/do"
-	"github.com/yz4230/githost-poc/internal/git"
+	"github.com/yz4230/githost-poc/internal/repository"
+	"github.com/yz4230/githost-poc/internal/server/routes"
 	"github.com/yz4230/githost-poc/internal/storage"
+	"github.com/yz4230/githost-poc/internal/usecase"
+	"gorm.io/gorm"
 )
 
 type Config struct {
@@ -52,7 +52,12 @@ func New(config *Config) *Server {
 			return nil
 		},
 	}))
-	e.Use(middleware.Recover())
+	e.Use(middleware.RecoverWithConfig(middleware.RecoverConfig{
+		LogErrorFunc: func(c echo.Context, err error, stack []byte) error {
+			config.Logger.Error().Err(err).Bytes("stack", stack).Send()
+			return err
+		},
+	}))
 	e.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
 			req := c.Request()
@@ -74,79 +79,24 @@ func (s *Server) init() {
 }
 
 func (s *Server) injectDependencies(injector *do.Injector) {
+	do.Provide(injector, func(i *do.Injector) (*gorm.DB, error) {
+		return repository.NewSQLiteDB(s.config.Root)
+	})
 	do.Provide(injector, func(i *do.Injector) (storage.GitStorage, error) {
 		root := filepath.Join(s.config.Root, "repositories")
 		return storage.NewGitStorage(root, s.config.Logger), nil
 	})
+	do.Provide(injector, func(i *do.Injector) (repository.RepositoryRepository, error) {
+		db := do.MustInvoke[*gorm.DB](i)
+		return repository.NewRepositoryRepository(db), nil
+	})
+	do.Provide(injector, usecase.NewCreateRepositoryUsecase)
+	do.Provide(injector, usecase.NewListRepositoryUsecase)
 }
 
 func (s *Server) registerRoutes(injector *do.Injector) {
-	s.registerRestAPI(injector)
-	s.registerGitSmartHTTP(injector)
-}
-
-func (s *Server) registerRestAPI(injector *do.Injector) {
-	g := s.e.Group("/api")
-
-	g.GET("/health", func(c echo.Context) error {
-		return c.String(http.StatusOK, "OK")
-	})
-}
-
-func (s *Server) registerGitSmartHTTP(injector *do.Injector) {
-	g := s.e.Group("/:reponame")
-
-	// Validate reponame
-	g.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
-		reReponame := regexp.MustCompile(`^[a-zA-Z0-9_-]+\.git$`)
-		return func(c echo.Context) error {
-			reponame := c.Param("reponame")
-			if !reReponame.MatchString(reponame) {
-				return c.NoContent(http.StatusNotFound)
-			}
-			return next(c)
-		}
-	})
-
-	g.GET("/info/refs", func(c echo.Context) error {
-		storage := do.MustInvoke[storage.GitStorage](injector)
-
-		req, res := c.Request(), c.Response()
-		reponame := strings.TrimSuffix(c.Param("reponame"), ".git")
-		repodir := storage.GetRepoDir(reponame)
-
-		if err := storage.EnsureBareRepo(req.Context(), reponame); err != nil {
-			return c.NoContent(http.StatusInternalServerError)
-		}
-
-		service := c.QueryParam("service")
-		res.Header().Set("Content-Type", "application/x-"+service+"-advertisement")
-		res.Header().Set("Cache-Control", "no-cache")
-		if err := git.AdvertiseRefs(req.Context(), service, repodir, res.Writer); err != nil {
-			return c.NoContent(http.StatusInternalServerError)
-		}
-		return nil
-	})
-
-	smartHandler := func(service string) echo.HandlerFunc {
-		return func(c echo.Context) error {
-			storage := do.MustInvoke[storage.GitStorage](injector)
-
-			req, res := c.Request(), c.Response()
-			reponame := strings.TrimSuffix(c.Param("reponame"), ".git")
-			repodir := storage.GetRepoDir(reponame)
-
-			res.Header().Set("Content-Type", "application/x-"+service+"-result")
-			res.Header().Set("Cache-Control", "no-cache")
-			if err := git.ExecStatelessRPC(req.Context(), service, repodir, req.Body, res.Writer); err != nil {
-				return c.NoContent(http.StatusInternalServerError)
-			}
-			return nil
-		}
-	}
-
-	g.POST("/git-upload-pack", smartHandler(git.ServiceUploadPack))
-	g.POST("/git-receive-pack", smartHandler(git.ServiceReceivePack))
+	routes.RegisterRestAPI(injector, s.e)
+	routes.RegisterGitSmartHTTP(injector, s.e)
 }
 
 func (s *Server) Start() error {
