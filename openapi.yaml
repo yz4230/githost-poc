@@ -1,0 +1,99 @@
+openapi: "3.0.3"
+info:
+  title: githost-poc API
+  version: "1.0.0"
+  description: "OpenAPI specification generated from the githost-poc Go server implementation"
+paths:
+  /api/health:
+    get:
+      summary: Health check
+      tags:
+        - health
+      responses:
+        '200':
+          description: OK
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: "OK"
+  /api/repositories:
+    post:
+      summary: Create repository
+      tags:
+        - repositories
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RepositoryCreateRequest'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Repository'
+        '400':
+          description: Bad Request (invalid payload)
+        '409':
+          description: Conflict (repository exists)
+        '500':
+          description: Internal Server Error
+    get:
+      summary: List repositories
+      tags:
+        - repositories
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RepositoryListResponse'
+        '500':
+          description: Internal Server Error
+components:
+  schemas:
+    Repository:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Repository unique ID
+          example: "1"
+        name:
+          type: string
+          example: "test"
+        description:
+          type: string
+          example: "A sample repository"
+        deploy_branch:
+          type: string
+          example: "main"
+        latest_sha:
+          type: string
+          example: "0000000000000000000000000000000000000000"
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+      required: [id, name]
+    RepositoryCreateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+      required: [name]
+    RepositoryListResponse:
+      type: object
+      properties:
+        repositories:
+          type: array
+          items:
+            $ref: '#/components/schemas/Repository'
