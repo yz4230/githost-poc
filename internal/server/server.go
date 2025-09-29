@@ -81,7 +81,8 @@ func (s *Server) init() {
 
 func (s *Server) injectDependencies(injector *do.Injector) {
 	do.Provide(injector, func(i *do.Injector) (*gorm.DB, error) {
-		return repository.NewSQLiteDB(s.config.Root)
+		filename := filepath.Join(s.config.Root, "data.db")
+		return repository.NewSQLiteDB(filename)
 	})
 	do.Provide(injector, func(i *do.Injector) (storage.GitStorage, error) {
 		root := filepath.Join(s.config.Root, "repositories")

@@ -5,8 +5,8 @@ import (
 	"gorm.io/gorm"
 )
 
-func NewSQLiteDB(dataDir string) (*gorm.DB, error) {
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+func NewSQLiteDB(filename string) (*gorm.DB, error) {
+	db, err := gorm.Open(sqlite.Open(filename), &gorm.Config{})
 	if err != nil {
 		return nil, err
 	}
