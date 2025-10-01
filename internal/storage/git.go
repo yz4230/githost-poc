@@ -17,6 +17,7 @@ type GitStorage interface {
 	IsRepoExist(name string) bool
 	EnsureBareRepo(ctx context.Context, name string) error
 	InitBareRepo(ctx context.Context, name string) error
+	RemoveRepo(ctx context.Context, name string) error
 }
 
 type gitStorageImpl struct {
@@ -67,6 +68,18 @@ func (g *gitStorageImpl) InitBareRepo(ctx context.Context, reponame string) erro
 		return fmt.Errorf("write post-receive hook: %w", err)
 	}
 
+	return nil
+}
+
+// RemoveRepo implements GitStorage.
+func (g *gitStorageImpl) RemoveRepo(ctx context.Context, reponame string) error {
+	repodir := g.GetRepoDir(reponame)
+	if !g.IsRepoExist(reponame) {
+		return nil
+	}
+	if err := os.RemoveAll(repodir); err != nil {
+		return fmt.Errorf("remove repo dir: %w", err)
+	}
 	return nil
 }
 

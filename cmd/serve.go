@@ -22,6 +22,11 @@ var serveFlags struct {
 var serveCmd = &cobra.Command{
 	Use: "serve",
 	RunE: func(cmd *cobra.Command, args []string) error {
+		if err := os.MkdirAll(serveFlags.dataDir, os.ModePerm); err != nil {
+			log.Fatal().Err(err).Msg("failed to create data directory")
+			return err
+		}
+
 		config := &server.Config{Root: serveFlags.dataDir, Port: serveFlags.port, Logger: log.Logger}
 		srv := server.New(config)
 		chSignal := make(chan os.Signal, 1)

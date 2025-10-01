@@ -88,17 +88,16 @@ func (s *Server) injectDependencies(injector *do.Injector) {
 		root := filepath.Join(s.config.Root, "repositories")
 		return storage.NewGitStorage(root, s.config.Logger), nil
 	})
-	do.Provide(injector, func(i *do.Injector) (repository.RepositoryRepository, error) {
-		db := do.MustInvoke[*gorm.DB](i)
-		return repository.NewRepositoryRepository(db), nil
-	})
+	do.Provide(injector, repository.NewRepositoryRepository)
 	do.Provide(injector, usecase.NewCreateRepositoryUsecase)
 	do.Provide(injector, usecase.NewListRepositoryUsecase)
+	do.Provide(injector, usecase.NewCheckRepositoryNameUsecase)
 }
 
 func (s *Server) registerRoutes(injector *do.Injector) {
-	routes.RegisterRestAPI(injector, s.e)
+	routes.RegisterAPI(injector, s.e)
 	routes.RegisterGitSmartHTTP(injector, s.e)
+	routes.RegisterMisc(injector, s.e)
 }
 
 func (s *Server) Start() error {

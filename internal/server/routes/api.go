@@ -7,15 +7,38 @@ import (
 	"github.com/samber/do"
 	"github.com/yz4230/githost-poc/internal/entity"
 	"github.com/yz4230/githost-poc/internal/usecase"
+	"github.com/yz4230/githost-poc/internal/utils"
 )
 
-func RegisterRestAPI(injector *do.Injector, e *echo.Echo) {
-	g := e.Group("/api")
+func RegisterAPI(injector *do.Injector, e *echo.Echo) {
+	api := e.Group("/api")
 
-	g.GET("/health", func(c echo.Context) error {
-		return c.String(http.StatusOK, "OK")
+	api.POST("/check-name", func(c echo.Context) error {
+		type request struct {
+			Name string `json:"name"`
+		}
+		var req request
+		if err := c.Bind(&req); err != nil {
+			return c.NoContent(http.StatusBadRequest)
+		}
+		name := utils.SanitizeName(req.Name)
+		usecase := do.MustInvoke[usecase.CheckRepositoryNameUsecase](injector)
+		available, err := usecase.Execute(c.Request().Context(), name)
+		if err != nil {
+			return c.NoContent(http.StatusInternalServerError)
+		}
+
+		type response struct {
+			Name      string `json:"name"`
+			Available bool   `json:"available"`
+		}
+		return c.JSON(http.StatusOK, &response{
+			Name:      name,
+			Available: available,
+		})
+
 	})
-	g.POST("/repositories", func(c echo.Context) error {
+	api.POST("/repositories", func(c echo.Context) error {
 		type request struct {
 			Name        string `json:"name"`
 			Description string `json:"description"`
@@ -42,7 +65,7 @@ func RegisterRestAPI(injector *do.Injector, e *echo.Echo) {
 
 		return c.JSON(http.StatusCreated, repo)
 	})
-	g.GET("/repositories", func(c echo.Context) error {
+	api.GET("/repositories", func(c echo.Context) error {
 		usecase := do.MustInvoke[usecase.ListRepositoryUsecase](injector)
 		repos, err := usecase.Execute(c.Request().Context())
 		if err != nil {

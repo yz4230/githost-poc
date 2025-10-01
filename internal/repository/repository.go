@@ -2,7 +2,9 @@ package repository
 
 import (
 	"context"
+	"errors"
 
+	"github.com/samber/do"
 	"github.com/yz4230/githost-poc/internal/entity"
 	"gorm.io/gorm"
 )
@@ -44,6 +46,9 @@ func (r *repositoryRepositoryImpl) GetByID(ctx context.Context, id entity.ID) (*
 func (r *repositoryRepositoryImpl) GetByName(ctx context.Context, name string) (*entity.Repository, error) {
 	found, err := gorm.G[Repository](r.db).Where("name = ?", name).First(ctx)
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, entity.ErrNotFound
+		}
 		return nil, err
 	}
 	return found.ToEntity(), nil
@@ -81,6 +86,6 @@ func (r *repositoryRepositoryImpl) Delete(ctx context.Context, id entity.ID) err
 	return err
 }
 
-func NewRepositoryRepository(db *gorm.DB) RepositoryRepository {
-	return &repositoryRepositoryImpl{db: db}
+func NewRepositoryRepository(i *do.Injector) (RepositoryRepository, error) {
+	return &repositoryRepositoryImpl{db: do.MustInvoke[*gorm.DB](i)}, nil
 }
