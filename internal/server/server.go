@@ -92,6 +92,7 @@ func (s *Server) injectDependencies(injector *do.Injector) {
 	do.Provide(injector, usecase.NewCreateRepositoryUsecase)
 	do.Provide(injector, usecase.NewListRepositoryUsecase)
 	do.Provide(injector, usecase.NewCheckRepositoryNameUsecase)
+	do.Provide(injector, usecase.NewGetRepositoryUsecase)
 }
 
 func (s *Server) registerRoutes(injector *do.Injector) {
