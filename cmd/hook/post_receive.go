@@ -105,8 +105,11 @@ func deployWithDocker(repodir, reponame, commitSHA string) error {
 	}
 
 	containers, err := cli.ContainerList(context.Background(), container.ListOptions{
-		All:     true,
-		Filters: filters.NewArgs(filters.Arg("name", reponame)),
+		All: true,
+		Filters: filters.NewArgs(
+			filters.Arg("label", "githost.enabled=true"),
+			filters.Arg("label", fmt.Sprintf("githost.repo=%s", reponame)),
+		),
 	})
 	if err != nil {
 		log.Error().Err(err).Msg("failed to list containers")
@@ -129,15 +132,21 @@ func deployWithDocker(repodir, reponame, commitSHA string) error {
 
 	log.Info().Str("image", imageID).Msg("starting new container")
 
+	containerName := fmt.Sprintf("%s-%s", reponame, commitSHA[:7])
 	resp, err := cli.ContainerCreate(context.Background(),
 		&container.Config{
 			Image: fmt.Sprintf("%s:%s", reponame, commitSHA),
+			Labels: map[string]string{
+				"githost.enabled": "true",
+				"githost.repo":    reponame,
+				"githost.commit":  commitSHA,
+			},
 		},
 		&container.HostConfig{
 			RestartPolicy: container.RestartPolicy{
 				Name: container.RestartPolicyUnlessStopped,
 			},
-		}, nil, nil, reponame)
+		}, nil, nil, containerName)
 
 	if err != nil {
 		return fmt.Errorf("failed to create container: %w", err)
@@ -158,7 +167,12 @@ func buildDockerImage(cli *client.Client, repodir, reponame, commitSHA string) (
 		return "", fmt.Errorf("failed to create tar archive: %w", err)
 	}
 	buildOptions := build.ImageBuildOptions{
-		Tags:       []string{fmt.Sprintf("%s:%s", reponame, commitSHA), fmt.Sprintf("%s:latest", reponame)},
+		Tags: []string{fmt.Sprintf("%s:%s", reponame, commitSHA), fmt.Sprintf("%s:latest", reponame)},
+		Labels: map[string]string{
+			"githost.enabled": "true",
+			"githost.repo":    reponame,
+			"githost.commit":  commitSHA,
+		},
 		Dockerfile: "Dockerfile",
 		Remove:     true,
 		NoCache:    true,
