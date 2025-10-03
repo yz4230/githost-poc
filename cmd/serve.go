@@ -30,7 +30,7 @@ var serveCmd = &cobra.Command{
 		config := &server.Config{Root: serveFlags.dataDir, Port: serveFlags.port, Logger: log.Logger}
 		srv := server.New(config)
 		chSignal := make(chan os.Signal, 1)
-		signal.Notify(chSignal, os.Interrupt, syscall.SIGTERM)
+		signal.Notify(chSignal, syscall.SIGINT, syscall.SIGTERM)
 
 		wg := &sync.WaitGroup{}
 		wg.Go(func() {
