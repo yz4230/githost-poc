@@ -12,7 +12,7 @@ import (
 )
 
 func RegisterGitSmartHTTP(injector *do.Injector, e *echo.Echo) {
-	g := e.Group("/:reponame")
+	g := e.Group("/repos/:reponame")
 
 	// Validate reponame
 	g.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
