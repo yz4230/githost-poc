@@ -8,21 +8,21 @@ import (
 	"github.com/yz4230/githost-poc/internal/repository"
 )
 
-type GetRepositoryUsecase interface {
+type GetRepositoryByNameUsecase interface {
 	Execute(ctx context.Context, name string) (*entity.Repository, error)
 }
 
-type getRepositoryUsecaseImpl struct {
+type getRepositoryByNameUsecaseImpl struct {
 	repositoryRepository repository.RepositoryRepository
 }
 
-// Execute implements GetRepositoryUsecase.
-func (g *getRepositoryUsecaseImpl) Execute(ctx context.Context, name string) (*entity.Repository, error) {
+// Execute implements GetRepositoryByNameUsecase.
+func (g *getRepositoryByNameUsecaseImpl) Execute(ctx context.Context, name string) (*entity.Repository, error) {
 	return g.repositoryRepository.GetByName(ctx, name)
 }
 
-func NewGetRepositoryUsecase(injector *do.Injector) (GetRepositoryUsecase, error) {
-	return &getRepositoryUsecaseImpl{
+func NewGetRepositoryByNameUsecase(injector *do.Injector) (GetRepositoryByNameUsecase, error) {
+	return &getRepositoryByNameUsecaseImpl{
 		repositoryRepository: do.MustInvoke[repository.RepositoryRepository](injector),
 	}, nil
 }

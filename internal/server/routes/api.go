@@ -83,7 +83,7 @@ func RegisterAPI(injector *do.Injector, e *echo.Echo) {
 	})
 	api.GET("/repositories/:name", func(c echo.Context) error {
 		name := c.Param("name")
-		usecase := do.MustInvoke[usecase.GetRepositoryUsecase](injector)
+		usecase := do.MustInvoke[usecase.GetRepositoryByNameUsecase](injector)
 		repo, err := usecase.Execute(c.Request().Context(), name)
 		if err != nil {
 			if err == entity.ErrNotFound {
